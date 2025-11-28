@@ -1,0 +1,23 @@
+# --- Block Visual Studio Locks (Fixes the error) ---
+.vs/
+Telegram Forge Simulator/.vs/
+*.user
+*.suo
+*.pidb
+*.booproj
+
+# --- Unity Junk (Matches your specific folder name) ---
+Telegram Forge Simulator/[Ll]ibrary/
+Telegram Forge Simulator/[Tt]emp/
+Telegram Forge Simulator/[Oo]bj/
+Telegram Forge Simulator/[Bb]uilds/
+Telegram Forge Simulator/Logs/
+Telegram Forge Simulator/UserSettings/
+
+# --- Node Junk ---
+Server/node_modules/
+.env
+
+# --- OS Junk ---
+.DS_Store
+Thumbs.db

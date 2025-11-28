@@ -1,0 +1,22 @@
+[
+  {
+    "telegram_id": 12345,
+    "first_name": "EditorAdmin",
+    "username": "editor_dev",
+    "shop_numbers": [
+      32,
+      50,
+      73
+    ]
+  },
+  {
+    "telegram_id": 123456,
+    "first_name": "EditorAdmin2",
+    "username": "editor_dev2",
+    "shop_numbers": [
+      11,
+      2,
+      3
+    ]
+  }
+]
