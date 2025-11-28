@@ -58,7 +58,7 @@ public class TelegramManager : MonoBehaviour
 
     IEnumerator LoginToServer(TelegramUser localUser)
     {
-        string url = "http://localhost:3000/login";
+        string url = "https://telegram-econ-sim.onrender.com/login";
 
         // Prepare JSON data
         string json = JsonUtility.ToJson(localUser);

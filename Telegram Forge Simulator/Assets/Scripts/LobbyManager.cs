@@ -22,7 +22,7 @@ public class LobbyManager : MonoBehaviour
 
     IEnumerator JoinUserInstance(long targetId)
     {
-        string url = "http://localhost:3000/user/" + targetId;
+        string url = "https://telegram-econ-sim.onrender.com/user/" + targetId;
         UnityWebRequest request = UnityWebRequest.Get(url);
 
         yield return request.SendWebRequest();
@@ -53,7 +53,7 @@ public class LobbyManager : MonoBehaviour
 
     IEnumerator FetchUserList()
     {
-        string url = "http://localhost:3000/users";
+        string url = "https://telegram-econ-sim.onrender.com/users";
         UnityWebRequest request = UnityWebRequest.Get(url);
 
         yield return request.SendWebRequest();
