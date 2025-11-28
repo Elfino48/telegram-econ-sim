@@ -42,17 +42,34 @@ public class TelegramManager : MonoBehaviour
         string json = "";
 
 #if UNITY_EDITOR
-        // We simulate a user
-        json = "{\"id\": 12345, \"first_name\": \"EditorAdmin\", \"username\": \"editor_dev\"}";
+        json = "{\"id\": 99999, \"first_name\": \"Editor\", \"username\": \"editor_dev\"}";
 #else
-        json = GetTelegramUserData();
+        try {
+            json = GetTelegramUserData();
+        } catch (System.Exception e) {
+            debugText.text = "JS Error: " + e.Message;
+            return;
+        }
 #endif
+
+        // DEBUG: Print exactly what we got
+        if (debugText != null) debugText.text = "Raw JSON: " + json;
 
         if (!string.IsNullOrEmpty(json))
         {
-            TelegramUser tempUser = JsonUtility.FromJson<TelegramUser>(json);
-            // Now we send this ID to our server to get/create the real game data
-            StartCoroutine(LoginToServer(tempUser));
+            try
+            {
+                TelegramUser tempUser = JsonUtility.FromJson<TelegramUser>(json);
+                StartCoroutine(LoginToServer(tempUser));
+            }
+            catch (System.Exception e)
+            {
+                if (debugText != null) debugText.text = "JSON Parse Error: " + e.Message;
+            }
+        }
+        else
+        {
+            if (debugText != null) debugText.text = "Error: JSON was empty.";
         }
     }
 
