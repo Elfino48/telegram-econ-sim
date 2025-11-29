@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Telegram Forge Simulator</title>
+    <title>{{{ PRODUCT_NAME }}}</title>
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
@@ -39,15 +39,15 @@
 
       // Unity Loader Config
       var buildUrl = "Build";
-      var loaderUrl = buildUrl + "/public.loader.js";
+      var loaderUrl = buildUrl + "/{{{ LOADER_FILENAME }}}";
       var config = {
-        dataUrl: buildUrl + "/public.data",
-        frameworkUrl: buildUrl + "/public.framework.js",
-        codeUrl: buildUrl + "/public.wasm",
+        dataUrl: buildUrl + "/{{{ DATA_FILENAME }}}",
+        frameworkUrl: buildUrl + "/{{{ FRAMEWORK_FILENAME }}}",
+        codeUrl: buildUrl + "/{{{ CODE_FILENAME }}}",
         streamingAssetsUrl: "StreamingAssets",
-        companyName: "DefaultCompany",
-        productName: "Telegram Forge Simulator",
-        productVersion: "1.0",
+        companyName: "{{{ COMPANY_NAME }}}",
+        productName: "{{{ PRODUCT_NAME }}}",
+        productVersion: "{{{ PRODUCT_VERSION }}}",
       };
 
       // Load Unity
