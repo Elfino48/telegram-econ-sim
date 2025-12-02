@@ -64,6 +64,7 @@
     <Compile Include="Assets\Scripts\TelegramManager.cs" />
     <Compile Include="Assets\Scripts\GridManager.cs" />
     <Compile Include="Assets\Scripts\UIManager.cs" />
+    <Compile Include="Assets\Scripts\FurnitureManager.cs" />
     <Compile Include="Assets\Scripts\ExpansionSign.cs" />
     <Compile Include="Assets\Scripts\CameraManager.cs" />
     <Compile Include="Assets\Scripts\LobbyManager.cs" />

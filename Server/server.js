@@ -7,20 +7,16 @@ const mongoose = require('mongoose');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// --- CONFIGURATION ---
-// PASTE YOUR CONNECTION STRING BELOW
-const MONGO_URI = "mongodb+srv://ekenherli_db_user:f5hQVLp2IW42dSyS@cluster0.vx9uahh.mongodb.net/?appName=Cluster0";
+const MONGO_URI = "mongodb+srv://admin:telegramgame1@cluster0.abcde.mongodb.net/?retryWrites=true&w=majority";
 
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- DATABASE CONNECTION ---
 mongoose.connect(MONGO_URI)
     .then(() => console.log('Connected to MongoDB Atlas'))
     .catch(err => console.error('Could not connect to MongoDB:', err));
 
-// --- DATA MODEL ---
 const UserSchema = new mongoose.Schema({
     telegram_id: Number,
     username: String,
@@ -32,14 +28,11 @@ const UserSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', UserSchema);
 
-// --- HELPER ---
 function generateRandomSet() {
     let set = [];
     for(let i=0; i<3; i++) set.push(Math.floor(Math.random() * 100) + 1);
     return set;
 }
-
-// --- ENDPOINTS ---
 
 app.post('/login', async (req, res) => {
     const { id, first_name, username } = req.body;
@@ -86,7 +79,6 @@ app.get('/user/:id', async (req, res) => {
     }
 });
 
-// Seed Endpoint (Updated for new schema)
 app.get('/seed', async (req, res) => {
     try {
         const fakeUsers = [
@@ -120,7 +112,6 @@ app.get('/seed', async (req, res) => {
     }
 });
 
-// Reset Endpoint
 app.get('/reset', async (req, res) => {
     try {
         await User.deleteMany({}); 
@@ -131,7 +122,6 @@ app.get('/reset', async (req, res) => {
     }
 });
 
-// Expand Endpoint (Now Free)
 app.post('/expand', async (req, res) => {
     const { id, chunk_x, chunk_y } = req.body;
     
@@ -139,9 +129,6 @@ app.post('/expand', async (req, res) => {
         const user = await User.findOne({ telegram_id: id });
         if (!user) return res.status(404).json({ error: "User not found" });
 
-        // Removed gold cost check here for free expansion
-
-        // Check if already owned
         const alreadyOwns = user.owned_chunks.some(c => c.x === chunk_x && c.y === chunk_y);
         if (alreadyOwns) {
             return res.status(400).json({ error: "Already owned" });
@@ -151,6 +138,22 @@ app.post('/expand', async (req, res) => {
         await user.save();
 
         res.json({ success: true, new_gold: user.gold });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/place_object', async (req, res) => {
+    const { id, x, y, type_id } = req.body;
+    
+    try {
+        const user = await User.findOne({ telegram_id: id });
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        user.objects_list.push({ x, y, type_id });
+        await user.save();
+
+        res.json({ success: true });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }

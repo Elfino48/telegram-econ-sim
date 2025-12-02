@@ -13,6 +13,14 @@ public class Chunk
 }
 
 [System.Serializable]
+public class ObjectData
+{
+    public float x;
+    public float y;
+    public string type_id;
+}
+
+[System.Serializable]
 public class TelegramUser
 {
     public long id;
@@ -20,7 +28,8 @@ public class TelegramUser
     public string username;
     public long telegram_id;
     public int gold;
-    public Chunk[] owned_chunks; // New field matching Server
+    public Chunk[] owned_chunks;
+    public ObjectData[] objects_list;
 }
 
 public class TelegramManager : MonoBehaviour
@@ -54,12 +63,11 @@ public class TelegramManager : MonoBehaviour
         try {
             json = GetTelegramUserData();
         } catch (System.Exception e) {
-            debugText.text = "JS Error: " + e.Message;
+            if(debugText) debugText.text = "JS Error: " + e.Message;
             return;
         }
 #endif
 
-        // DEBUG: Print exactly what we got
         if (debugText != null) debugText.text = "Raw JSON: " + json;
 
         if (!string.IsNullOrEmpty(json))
@@ -80,14 +88,21 @@ public class TelegramManager : MonoBehaviour
         }
     }
 
+    public void UpdateDebugText()
+    {
+        if (debugText != null && currentUser != null)
+        {
+            int chunkCount = currentUser.owned_chunks != null ? currentUser.owned_chunks.Length : 0;
+            debugText.text = $"Welcome {currentUser.first_name}!\nGold: {currentUser.gold}\nChunks: {chunkCount}";
+        }
+    }
+
     IEnumerator LoginToServer(TelegramUser localUser)
     {
-        string url = "https://telegram-econ-sim.onrender.com/login"; // Ensure this is your Render URL
+        string url = "https://telegram-econ-sim.onrender.com/login";
 
-        // Prepare JSON data
         string json = JsonUtility.ToJson(localUser);
 
-        // Create Request
         UnityWebRequest request = new UnityWebRequest(url, "POST");
         byte[] bodyRaw = Encoding.UTF8.GetBytes(json);
         request.uploadHandler = new UploadHandlerRaw(bodyRaw);
@@ -98,21 +113,22 @@ public class TelegramManager : MonoBehaviour
 
         if (request.result == UnityWebRequest.Result.Success)
         {
-            // Parse the FULL user data
             currentUser = JsonUtility.FromJson<TelegramUser>(request.downloadHandler.text);
 
-            // --- NEW CODE: GENERATE MY MAP IMMEDIATELY ---
+            if (debugText != null)
+            {
+                UpdateDebugText();
+            }
+
             if (GridManager.Instance != null)
             {
                 GridManager.Instance.GenerateMap(currentUser.owned_chunks);
+                GridManager.Instance.SpawnObjects(currentUser);
             }
-
-            // Debug Output
-            if (debugText != null)
-            {
-                int chunkCount = currentUser.owned_chunks != null ? currentUser.owned_chunks.Length : 0;
-                debugText.text = $"Welcome {currentUser.first_name}!\nGold: {currentUser.gold}\nChunks: {chunkCount}";
-            }
+        }
+        else
+        {
+            if (debugText != null) debugText.text = "Error: " + request.error;
         }
     }
 }

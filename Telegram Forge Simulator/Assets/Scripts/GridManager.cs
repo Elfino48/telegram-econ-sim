@@ -7,9 +7,9 @@ public class GridManager : MonoBehaviour
     public static GridManager Instance;
 
     [Header("Tilemaps")]
-    public Tilemap grassLayer; // Order 0
-    public Tilemap floorLayer; // Order 1
-    public Tilemap wallLayer;  // Order 2
+    public Tilemap grassLayer;
+    public Tilemap floorLayer;
+    public Tilemap wallLayer;
 
     [Header("Tiles")]
     public TileBase grassTile;
@@ -17,13 +17,17 @@ public class GridManager : MonoBehaviour
     public TileBase wallTop;
     public TileBase wallLeft;
     public TileBase wallRight;
-    public TileBase wallBottom; // NEW: Bottom Wall Slice
+    public TileBase wallBottom;
     public TileBase wallTopLeft;
     public TileBase wallTopRight;
 
     [Header("Prefabs")]
     public GameObject signPrefab;
     private List<GameObject> activeSigns = new List<GameObject>();
+
+    [Header("Furniture")]
+    public GameObject[] furniturePrefabs;
+    private List<GameObject> activeFurniture = new List<GameObject>();
 
     private const int CHUNK_SIZE = 6;
 
@@ -34,7 +38,6 @@ public class GridManager : MonoBehaviour
 
     public void GenerateMap(Chunk[] ownedChunks)
     {
-        // 1. Clear everything
         grassLayer.ClearAllTiles();
         floorLayer.ClearAllTiles();
         wallLayer.ClearAllTiles();
@@ -52,29 +55,52 @@ public class GridManager : MonoBehaviour
 
         HashSet<Vector2Int> floorPositions = new HashSet<Vector2Int>();
 
-        // 2. Loop Chunks to Paint Core Base & Grass
         foreach (Chunk chunk in ownedChunks)
         {
             Vector2Int currentChunkPos = new Vector2Int(chunk.x, chunk.y);
 
-            // A. Paint The Floor
             PaintChunkFloor(chunk.x, chunk.y, floorPositions);
 
-            // B. Check Neighbors for Grass & Signs
             CheckNeighbor(currentChunkPos, new Vector2Int(0, 1), false, ownedChunkPositions);
             CheckNeighbor(currentChunkPos, new Vector2Int(0, -1), true, ownedChunkPositions);
             CheckNeighbor(currentChunkPos, new Vector2Int(-1, 0), true, ownedChunkPositions);
             CheckNeighbor(currentChunkPos, new Vector2Int(1, 0), true, ownedChunkPositions);
 
-            // Diagonals
             CheckNeighbor(currentChunkPos, new Vector2Int(-1, 1), false, ownedChunkPositions);
             CheckNeighbor(currentChunkPos, new Vector2Int(1, 1), false, ownedChunkPositions);
             CheckNeighbor(currentChunkPos, new Vector2Int(-1, -1), false, ownedChunkPositions);
             CheckNeighbor(currentChunkPos, new Vector2Int(1, -1), false, ownedChunkPositions);
         }
 
-        // 3. Paint Walls
         PaintWalls(floorPositions);
+    }
+
+    public void SpawnObjects(TelegramUser user)
+    {
+        foreach (var obj in activeFurniture) Destroy(obj);
+        activeFurniture.Clear();
+
+        if (user.objects_list == null) return;
+
+        foreach (var objData in user.objects_list)
+        {
+            GameObject prefabToSpawn = null;
+            foreach (var p in furniturePrefabs)
+            {
+                if (p.name == objData.type_id || p.name + "(Clone)" == objData.type_id)
+                {
+                    prefabToSpawn = p;
+                    break;
+                }
+            }
+
+            if (prefabToSpawn != null)
+            {
+                Vector3 pos = new Vector3(objData.x, objData.y, 0);
+                GameObject newObj = Instantiate(prefabToSpawn, pos, Quaternion.identity);
+                activeFurniture.Add(newObj);
+            }
+        }
     }
 
     void CheckNeighbor(Vector2Int center, Vector2Int offset, bool spawnSign, HashSet<Vector2Int> ownedPositions)
@@ -150,8 +176,6 @@ public class GridManager : MonoBehaviour
             Vector2Int north = new Vector2Int(pos.x, pos.y + 1);
             Vector2Int west = new Vector2Int(pos.x - 1, pos.y);
             Vector2Int east = new Vector2Int(pos.x + 1, pos.y);
-
-            // NEW: South Check
             Vector2Int south = new Vector2Int(pos.x, pos.y - 1);
 
             bool hasFloorNorth = floorPositions.Contains(north);
@@ -159,7 +183,6 @@ public class GridManager : MonoBehaviour
             bool hasFloorEast = floorPositions.Contains(east);
             bool hasFloorSouth = floorPositions.Contains(south);
 
-            // --- NORTH WALLS (Face) ---
             if (!hasFloorNorth)
             {
                 wallLayer.SetTile((Vector3Int)north, wallTop);
@@ -185,24 +208,20 @@ public class GridManager : MonoBehaviour
                 }
             }
 
-            // --- WEST WALLS ---
             if (!hasFloorWest)
             {
                 if (!wallLayer.HasTile((Vector3Int)west))
                     wallLayer.SetTile((Vector3Int)west, wallLeft);
             }
 
-            // --- EAST WALLS ---
             if (!hasFloorEast)
             {
                 if (!wallLayer.HasTile((Vector3Int)east))
                     wallLayer.SetTile((Vector3Int)east, wallRight);
             }
 
-            // --- SOUTH WALLS (NEW) ---
             if (!hasFloorSouth)
             {
-                // We paint directly ON the empty tile below us
                 if (!wallLayer.HasTile((Vector3Int)south))
                 {
                     wallLayer.SetTile((Vector3Int)south, wallBottom);
