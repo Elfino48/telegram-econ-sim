@@ -44,7 +44,7 @@ public class TelegramManager : MonoBehaviour
         RequestUserData();
     }
 
-    void RequestUserData()
+    public void RequestUserData()
     {
         string json = "";
 
@@ -98,19 +98,21 @@ public class TelegramManager : MonoBehaviour
 
         if (request.result == UnityWebRequest.Result.Success)
         {
-            // Parse the FULL user data from the server
+            // Parse the FULL user data
             currentUser = JsonUtility.FromJson<TelegramUser>(request.downloadHandler.text);
 
-            // --- UPDATED DEBUG OUTPUT ---
+            // --- NEW CODE: GENERATE MY MAP IMMEDIATELY ---
+            if (GridManager.Instance != null)
+            {
+                GridManager.Instance.GenerateMap(currentUser.owned_chunks);
+            }
+
+            // Debug Output
             if (debugText != null)
             {
                 int chunkCount = currentUser.owned_chunks != null ? currentUser.owned_chunks.Length : 0;
                 debugText.text = $"Welcome {currentUser.first_name}!\nGold: {currentUser.gold}\nChunks: {chunkCount}";
             }
-        }
-        else
-        {
-            if (debugText != null) debugText.text = "Error: " + request.error;
         }
     }
 }
