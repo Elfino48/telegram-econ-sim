@@ -7,7 +7,7 @@ const mongoose = require('mongoose');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const MONGO_URI = "mongodb+srv://admin:telegramgame1@cluster0.abcde.mongodb.net/?retryWrites=true&w=majority";
+const MONGO_URI = "mongodb+srv://ekenherli_db_user:f5hQVLp2IW42dSyS@cluster0.vx9uahh.mongodb.net/?appName=Cluster0";
 
 app.use(cors());
 app.use(bodyParser.json());
