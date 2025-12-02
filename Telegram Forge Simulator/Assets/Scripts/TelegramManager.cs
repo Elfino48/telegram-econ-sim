@@ -6,14 +6,21 @@ using System.Text;
 using System.Collections;
 
 [System.Serializable]
+public class Chunk
+{
+    public int x;
+    public int y;
+}
+
+[System.Serializable]
 public class TelegramUser
 {
     public long id;
     public string first_name;
     public string username;
-    // Changed from string[] emoji_set to int[] shop_numbers
-    public int[] shop_numbers;
     public long telegram_id;
+    public int gold;
+    public Chunk[] owned_chunks; // New field matching Server
 }
 
 public class TelegramManager : MonoBehaviour
@@ -75,7 +82,7 @@ public class TelegramManager : MonoBehaviour
 
     IEnumerator LoginToServer(TelegramUser localUser)
     {
-        string url = "https://telegram-econ-sim.onrender.com/login";
+        string url = "https://telegram-econ-sim.onrender.com/login"; // Ensure this is your Render URL
 
         // Prepare JSON data
         string json = JsonUtility.ToJson(localUser);
@@ -91,13 +98,15 @@ public class TelegramManager : MonoBehaviour
 
         if (request.result == UnityWebRequest.Result.Success)
         {
-            // Parse the FULL user data (including emojis) from the server
+            // Parse the FULL user data from the server
             currentUser = JsonUtility.FromJson<TelegramUser>(request.downloadHandler.text);
 
-            // Debug Output
-            string items = currentUser.shop_numbers != null ? string.Join(", ", currentUser.shop_numbers) : "Empty";
+            // --- UPDATED DEBUG OUTPUT ---
             if (debugText != null)
-                debugText.text = $"Welcome {currentUser.first_name}!\nItems: {items}";
+            {
+                int chunkCount = currentUser.owned_chunks != null ? currentUser.owned_chunks.Length : 0;
+                debugText.text = $"Welcome {currentUser.first_name}!\nGold: {currentUser.gold}\nChunks: {chunkCount}";
+            }
         }
         else
         {

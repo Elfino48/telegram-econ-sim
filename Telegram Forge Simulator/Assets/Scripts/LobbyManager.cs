@@ -34,14 +34,13 @@ public class LobbyManager : MonoBehaviour
             // Update UI
             gameStagePanel.SetActive(true);
             shopNameText.text = "Visiting Shop: " + targetUser.first_name;
+            emojiDisplayText.text = ""; // Clear old text
 
-            // Display Numbers
-            if (targetUser.shop_numbers != null)
-                emojiDisplayText.text = string.Join(" - ", targetUser.shop_numbers);
-            else
-                emojiDisplayText.text = "0 - 0 - 0";
-
-            Debug.Log($"Loaded instance. Items: {emojiDisplayText.text}");
+            // GENERATE THE MAP
+            if (GridManager.Instance != null)
+            {
+                GridManager.Instance.GenerateMap(targetUser.owned_chunks);
+            }
         }
         else
         {
