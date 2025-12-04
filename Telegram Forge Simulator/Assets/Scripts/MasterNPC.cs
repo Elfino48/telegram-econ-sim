@@ -2,6 +2,7 @@ using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using TMPro; // Needed for the Name Text
 
 public class MasterNPC : MonoBehaviour
 {
@@ -11,6 +12,9 @@ public class MasterNPC : MonoBehaviour
     [Header("Visuals")]
     public SpriteRenderer spriteRenderer;
     public Sprite faceUp, faceDown, faceLeft, faceRight;
+    public TextMeshPro nameText; // Drag the Text (TMP) child here
+
+    [Header("Animation Settings")]
     public float moveSpeed = 2.0f;
     public float dollShakeSpeed = 10f;
     public float dollShakeAmount = 5f;
@@ -23,8 +27,8 @@ public class MasterNPC : MonoBehaviour
     [Tooltip("How close to the target point the NPC stops (Lower = Closer)")]
     public float stopDistance = 0.1f;
 
-    [Tooltip("Offset from the furniture pivot where the NPC should stand. (0, -1) means 1 tile below.")]
-    public Vector2 interactionOffset = new Vector2(0, -0.7f); // Try -0.5 or -0.2 to get closer
+    [Tooltip("Offset from the furniture pivot where the NPC should stand. (0, -0.7) means slightly below.")]
+    public Vector2 interactionOffset = new Vector2(0, -0.7f);
 
     // Current Targets
     private ChestController myChest;
@@ -36,6 +40,12 @@ public class MasterNPC : MonoBehaviour
     void Start()
     {
         StartCoroutine(LifeCycle());
+    }
+
+    public void SetDisplayName(string name)
+    {
+        if (nameText != null) nameText.text = name;
+        this.name = "Master_" + name; // Update GameObject name for easier debugging
     }
 
     IEnumerator LifeCycle()
@@ -73,16 +83,20 @@ public class MasterNPC : MonoBehaviour
         }
     }
 
+    // --- STATES ---
+
     IEnumerator DoIdle()
     {
         ReleaseResources();
 
+        // 1. Find Nearest Available Chest
         myChest = FindBestChest();
 
         if (myChest != null)
         {
             myChest.isOccupied = true;
 
+            // 2. Find Nearest Available Anvil
             myAnvil = FindBestAnvil();
             if (myAnvil != null)
             {
@@ -92,48 +106,31 @@ public class MasterNPC : MonoBehaviour
             }
             else
             {
+                // No anvil? Release chest and wait
                 myChest.isOccupied = false;
                 myChest = null;
             }
         }
 
-        Vector2Int randomSpot = PathfindingManager.Instance.GetRandomWalkableNode();
-        yield return StartCoroutine(MoveToTarget(randomSpot));
-        yield return new WaitForSeconds(2f);
-    }
-
-    // --- APPROACH LOGIC ---
-    IEnumerator ApproachObject(Transform target)
-    {
-        if (target == null) yield break;
-
-        // Calculate the exact world position we want to stand at
-        Vector3 exactTargetPos = target.position + (Vector3)interactionOffset;
-
-        // Walk towards that point until within 'stopDistance'
-        while (Vector3.Distance(transform.position, exactTargetPos) > stopDistance)
+        // Wander randomly if no work found
+        if (PathfindingManager.Instance != null)
         {
-            Vector3 dir = (exactTargetPos - transform.position).normalized;
-            transform.position += dir * moveSpeed * Time.deltaTime;
-            SetDirection(dir);
-            AnimateDoll();
-            yield return null;
+            Vector2Int randomSpot = PathfindingManager.Instance.GetRandomWalkableNode();
+            yield return StartCoroutine(MoveToTarget(randomSpot));
         }
 
-        // Final snap logic (optional, keeps them crisp)
-        // transform.position = exactTargetPos; 
-
-        transform.rotation = Quaternion.identity;
+        yield return new WaitForSeconds(2f);
     }
 
     IEnumerator DoCollecting()
     {
+        // 1. Walk close to the object (Visual Fix)
         if (myChest != null) yield return StartCoroutine(ApproachObject(myChest.transform));
 
         SetDirection(Vector2.up);
 
-        // SAFETY CHECK 1: Is chest still valid?
-        if (myChest == null || myChest.gameObject == null)
+        // Safety Check: Did chest vanish while we walked here?
+        if (myChest == null)
         {
             currentState = State.Idle;
             yield break;
@@ -142,14 +139,16 @@ public class MasterNPC : MonoBehaviour
         myChest.SetOpenState(true);
         yield return new WaitForSeconds(collectDuration);
 
-        // SAFETY CHECK 2: Did it get destroyed while we waited?
-        if (myChest == null || myChest.gameObject == null)
+        // Safety Check 2
+        if (myChest == null)
         {
             currentState = State.Idle;
             yield break;
         }
 
         myChest.resourceCount--;
+
+        // Update persistent data
         if (myChest.customData.ContainsKey("resources"))
             myChest.customData["resources"] = myChest.resourceCount.ToString();
 
@@ -165,8 +164,7 @@ public class MasterNPC : MonoBehaviour
 
         SetDirection(Vector2.up);
 
-        // SAFETY CHECK
-        if (myAnvil == null || myAnvil.gameObject == null)
+        if (myAnvil == null)
         {
             currentState = State.Idle;
             yield break;
@@ -181,6 +179,7 @@ public class MasterNPC : MonoBehaviour
     ChestController FindBestChest()
     {
         var chests = FindObjectsOfType<ChestController>();
+        // Find chests that have resources (>0) AND are not occupied by another master
         var validChests = chests.Where(c => !c.isOccupied && c.HasResources())
                                 .OrderBy(c => Vector3.Distance(transform.position, c.transform.position));
         return validChests.FirstOrDefault();
@@ -200,8 +199,12 @@ public class MasterNPC : MonoBehaviour
         if (myAnvil != null) { myAnvil.isOccupied = false; myAnvil = null; }
     }
 
+    // --- MOVEMENT ---
+
     IEnumerator MoveToTarget(Vector2Int gridTarget)
     {
+        if (PathfindingManager.Instance == null) yield break;
+
         Vector3Int cellPos = PathfindingManager.Instance.floorLayer.WorldToCell(transform.position);
         Vector2Int startPos = new Vector2Int(cellPos.x, cellPos.y);
 
@@ -218,6 +221,8 @@ public class MasterNPC : MonoBehaviour
         foreach (Vector2Int step in currentPath)
         {
             Vector3 worldStep = PathfindingManager.Instance.floorLayer.GetCellCenterWorld(new Vector3Int(step.x, step.y, 0));
+
+            // Move smoothly to tile center
             while (Vector3.Distance(transform.position, worldStep) > 0.05f)
             {
                 Vector3 dir = (worldStep - transform.position).normalized;
@@ -228,16 +233,36 @@ public class MasterNPC : MonoBehaviour
             }
             transform.position = worldStep;
         }
+
         transform.rotation = Quaternion.identity;
         isMoving = false;
     }
 
-    // UPDATED: Now uses the offset logic to find the best grid cell to walk to
+    // Walks directly towards the object (ignoring grid) for the final few steps
+    IEnumerator ApproachObject(Transform target)
+    {
+        if (target == null) yield break;
+
+        Vector3 exactTargetPos = target.position + (Vector3)interactionOffset;
+
+        while (Vector3.Distance(transform.position, exactTargetPos) > stopDistance)
+        {
+            Vector3 dir = (exactTargetPos - transform.position).normalized;
+            transform.position += dir * moveSpeed * Time.deltaTime;
+            SetDirection(dir);
+            AnimateDoll();
+            yield return null;
+        }
+
+        transform.rotation = Quaternion.identity;
+    }
+
     Vector2Int GetGridTarget(Vector3 targetWorldPos)
     {
-        // Add the offset (e.g. -0.7 Y) to find the tile "below" or "near" the object
-        Vector3 idealStandingSpot = targetWorldPos + (Vector3)interactionOffset;
+        if (PathfindingManager.Instance == null) return Vector2Int.zero;
 
+        // Find the tile closest to our desired "Interaction Point" (Target + Offset)
+        Vector3 idealStandingSpot = targetWorldPos + (Vector3)interactionOffset;
         Vector3Int cell = PathfindingManager.Instance.floorLayer.WorldToCell(idealStandingSpot);
         return new Vector2Int(cell.x, cell.y);
     }

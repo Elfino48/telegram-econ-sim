@@ -7,9 +7,9 @@ public class GridManager : MonoBehaviour
     public static GridManager Instance;
 
     [Header("Tilemaps")]
-    public Tilemap grassLayer;
-    public Tilemap floorLayer;
-    public Tilemap wallLayer;
+    public Tilemap grassLayer; // Order 0
+    public Tilemap floorLayer; // Order 1
+    public Tilemap wallLayer;  // Order 2 (Mode: Individual)
 
     [Header("Tiles")]
     public TileBase grassTile;
@@ -25,9 +25,12 @@ public class GridManager : MonoBehaviour
     public GameObject signPrefab;
     private List<GameObject> activeSigns = new List<GameObject>();
 
-    [Header("Furniture")]
+    [Header("Furniture & NPCs")]
     public GameObject[] furniturePrefabs;
+    public GameObject masterPrefab; // Drag Master Prefab here
+
     private List<GameObject> activeFurniture = new List<GameObject>();
+    private List<GameObject> activeMasters = new List<GameObject>();
 
     private const int CHUNK_SIZE = 6;
 
@@ -36,8 +39,11 @@ public class GridManager : MonoBehaviour
         Instance = this;
     }
 
+    // --- MAP GENERATION ---
+
     public void GenerateMap(Chunk[] ownedChunks)
     {
+        // 1. Clear everything
         grassLayer.ClearAllTiles();
         floorLayer.ClearAllTiles();
         wallLayer.ClearAllTiles();
@@ -50,48 +56,62 @@ public class GridManager : MonoBehaviour
 
         if (ownedChunks == null || ownedChunks.Length == 0) return;
 
+        // Create lookup
         HashSet<Vector2Int> ownedChunkPositions = new HashSet<Vector2Int>();
         foreach (var c in ownedChunks) ownedChunkPositions.Add(new Vector2Int(c.x, c.y));
 
         HashSet<Vector2Int> floorPositions = new HashSet<Vector2Int>();
 
+        // 2. Loop Chunks
         foreach (Chunk chunk in ownedChunks)
         {
             Vector2Int currentChunkPos = new Vector2Int(chunk.x, chunk.y);
 
+            // A. Paint Floor
             PaintChunkFloor(chunk.x, chunk.y, floorPositions);
 
+            // B. Paint Surroundings (Grass & Signs)
+            // Top: Grass Only
             CheckNeighbor(currentChunkPos, new Vector2Int(0, 1), false, ownedChunkPositions);
+            // Bottom: Grass + Sign
             CheckNeighbor(currentChunkPos, new Vector2Int(0, -1), true, ownedChunkPositions);
+            // Left: Grass + Sign
             CheckNeighbor(currentChunkPos, new Vector2Int(-1, 0), true, ownedChunkPositions);
+            // Right: Grass + Sign
             CheckNeighbor(currentChunkPos, new Vector2Int(1, 0), true, ownedChunkPositions);
 
+            // Diagonals (Grass only)
             CheckNeighbor(currentChunkPos, new Vector2Int(-1, 1), false, ownedChunkPositions);
             CheckNeighbor(currentChunkPos, new Vector2Int(1, 1), false, ownedChunkPositions);
             CheckNeighbor(currentChunkPos, new Vector2Int(-1, -1), false, ownedChunkPositions);
             CheckNeighbor(currentChunkPos, new Vector2Int(1, -1), false, ownedChunkPositions);
         }
 
+        // 3. Paint Walls
         PaintWalls(floorPositions);
-        PathfindingManager.Instance.ScanMap();
+
+        // 4. Update Pathfinding (Base grid)
+        if (PathfindingManager.Instance != null) PathfindingManager.Instance.ScanMap();
     }
 
-    // This spawns Furniture (with data) AND Masters
+    // --- OBJECT SPAWNING ---
+
     public void SpawnObjects(TelegramUser user)
     {
-        // 1. CLEAR OLD FURNITURE
-        foreach (var obj in activeFurniture)
-        {
-            if (obj != null) Destroy(obj);
-        }
+        // 1. Clear Old Furniture
+        foreach (var obj in activeFurniture) if (obj != null) Destroy(obj);
         activeFurniture.Clear();
 
-        // 2. SPAWN FURNITURE
+        // 2. Clear Old Masters
+        foreach (var m in activeMasters) if (m != null) Destroy(m);
+        activeMasters.Clear();
+
+        // 3. Spawn Furniture
         if (user.objects_list != null)
         {
             foreach (var objData in user.objects_list)
             {
-                // Find correct prefab by name
+                // Find Prefab by Name
                 GameObject prefabToSpawn = null;
                 foreach (var p in furniturePrefabs)
                 {
@@ -107,28 +127,27 @@ public class GridManager : MonoBehaviour
                     Vector3 pos = new Vector3(objData.x, objData.y, 0);
                     GameObject newObj = Instantiate(prefabToSpawn, pos, Quaternion.identity);
 
-                    // Sorting Fix
+                    // Fix Sorting (Ensure it plays nice with Wall Layer which is Order 2)
                     if (newObj.GetComponent<SpriteRenderer>())
                         newObj.GetComponent<SpriteRenderer>().sortingOrder = 2;
 
-                    // --- DATA INJECTION FIX ---
+                    // Load Smart Data (Resources etc)
                     SmartObject smartObj = newObj.GetComponent<SmartObject>();
                     if (smartObj != null)
                     {
                         Dictionary<string, string> dict = new Dictionary<string, string>();
 
-                        // If data exists on server, use it. Otherwise default to "10".
                         if (objData.data != null && !string.IsNullOrEmpty(objData.data.resources))
                         {
                             dict["resources"] = objData.data.resources;
                         }
                         else
                         {
-                            // RULE: All chests default to 10 resources if undefined
+                            // Default to 10 if missing
                             dict["resources"] = "10";
                         }
 
-                        smartObj.LoadData(dict); // Updates the text mesh immediately
+                        smartObj.LoadData(dict);
                     }
 
                     activeFurniture.Add(newObj);
@@ -136,32 +155,30 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        // 3. CLEAR OLD MASTERS
-        foreach (var m in activeMasters)
-        {
-            if (m != null) Destroy(m);
-        }
-        activeMasters.Clear();
-
-        // 4. SPAWN MASTERS
+        // 4. Spawn Masters
         if (user.masters_list != null)
         {
             foreach (var masterData in user.masters_list)
             {
                 Vector3 pos = new Vector3(masterData.x, masterData.y, 0);
                 GameObject newMaster = Instantiate(masterPrefab, pos, Quaternion.identity);
+
+                // Set Name
+                MasterNPC npcScript = newMaster.GetComponent<MasterNPC>();
+                if (npcScript != null)
+                {
+                    npcScript.SetDisplayName(masterData.name);
+                }
+
                 activeMasters.Add(newMaster);
             }
         }
 
-        // 5. UPDATE PATHFINDING
-        // Important: Re-scan the map now that new furniture is blocking tiles
-        if (PathfindingManager.Instance != null)
-        {
-            PathfindingManager.Instance.ScanMap();
-        }
+        // 5. Update Pathfinding (Obstacles changed)
+        if (PathfindingManager.Instance != null) PathfindingManager.Instance.ScanMap();
     }
 
+    // Helper for manual hiring to avoid duplicates
     public void RegisterMaster(GameObject masterObj)
     {
         if (!activeMasters.Contains(masterObj))
@@ -169,6 +186,9 @@ public class GridManager : MonoBehaviour
             activeMasters.Add(masterObj);
         }
     }
+
+    // --- HELPER METHODS ---
+
     void CheckNeighbor(Vector2Int center, Vector2Int offset, bool spawnSign, HashSet<Vector2Int> ownedPositions)
     {
         Vector2Int neighborPos = center + offset;
@@ -215,7 +235,6 @@ public class GridManager : MonoBehaviour
 
     void SpawnSignAtChunk(int cx, int cy)
     {
-        // Don't spawn duplicates
         foreach (var s in activeSigns)
         {
             if (s == null) continue;
@@ -250,6 +269,7 @@ public class GridManager : MonoBehaviour
             bool hasFloorEast = floorPositions.Contains(east);
             bool hasFloorSouth = floorPositions.Contains(south);
 
+            // NORTH WALL (Face + Corners)
             if (!hasFloorNorth)
             {
                 wallLayer.SetTile((Vector3Int)north, wallTop);
@@ -275,6 +295,7 @@ public class GridManager : MonoBehaviour
                 }
             }
 
+            // SIDE WALLS
             if (!hasFloorWest)
             {
                 if (!wallLayer.HasTile((Vector3Int)west))
@@ -287,6 +308,7 @@ public class GridManager : MonoBehaviour
                     wallLayer.SetTile((Vector3Int)east, wallRight);
             }
 
+            // SOUTH WALL (New Bottom Strip)
             if (!hasFloorSouth)
             {
                 if (!wallLayer.HasTile((Vector3Int)south))
@@ -296,24 +318,4 @@ public class GridManager : MonoBehaviour
             }
         }
     }
-
-    [Header("NPCs")]
-    public GameObject masterPrefab;
-    private List<GameObject> activeMasters = new List<GameObject>();
-
-    public void SpawnMasters(TelegramUser user)
-    {
-        // Clear old
-        foreach (var m in activeMasters) if (m != null) Destroy(m);
-        activeMasters.Clear();
-
-        if (user.masters_list == null) return;
-
-        foreach (var masterData in user.masters_list)
-        {
-            Vector3 pos = new Vector3(masterData.x, masterData.y, 0);
-            GameObject newMaster = Instantiate(masterPrefab, pos, Quaternion.identity);
-            activeMasters.Add(newMaster);
-        }
-    }
-}
+} 

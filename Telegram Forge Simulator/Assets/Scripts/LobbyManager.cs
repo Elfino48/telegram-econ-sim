@@ -9,10 +9,9 @@ public class LobbyManager : MonoBehaviour
 {
     public static LobbyManager Instance;
 
+    [Header("List UI")]
     public GameObject buttonPrefab;
     public Transform contentContainer;
-
-    [Header("UI Panels")]
     public GameObject lobbyScrollView; // Drag your ScrollView here!
 
     [Header("Game Stage UI")]
@@ -20,12 +19,13 @@ public class LobbyManager : MonoBehaviour
     public TextMeshProUGUI shopNameText;
     public TextMeshProUGUI emojiDisplayText;
 
-    [Header("UI Buttons")]
-    public GameObject furnitureButton;
-    public GameObject backHomeButton;
+    [Header("Main Buttons")]
+    public GameObject furnitureButton; // Drag Furniture Button
+    public GameObject backHomeButton;  // Drag Home Button
+    public GameObject hireButton;      // Drag Hire Button (New)
 
     [Header("NPCs")]
-    public GameObject masterPrefab;
+    public GameObject masterPrefab; // Drag Master Prefab
 
     void Awake()
     {
@@ -34,78 +34,28 @@ public class LobbyManager : MonoBehaviour
 
     void Start()
     {
+        // Default to Home mode
         SetEditMode(true);
-        // We do NOT fetch list here anymore to avoid the "Self not hidden" race condition.
-        // We will fetch it only when needed or after a short delay.
+
+        // Fetch list with slight delay to ensure login is complete
         StartCoroutine(FetchListWithDelay());
     }
 
     IEnumerator FetchListWithDelay()
     {
-        // Wait 1 second for Login to finish so we know who "Self" is
         yield return new WaitForSeconds(1.0f);
         StartCoroutine(FetchUserList());
     }
 
-    public void HireMaster()
+    // --- NAVIGATION LOGIC ---
+
+    public void GoHome()
     {
-        if (GridManager.Instance == null || PathfindingManager.Instance == null) return;
-
-        PathfindingManager.Instance.ScanMap();
-        Vector2Int spawnNode = PathfindingManager.Instance.GetRandomWalkableNode();
-        Vector3 spawnWorld = PathfindingManager.Instance.floorLayer.GetCellCenterWorld(new Vector3Int(spawnNode.x, spawnNode.y, 0));
-
-        // 1. Spawn locally
-        GameObject newMaster = Instantiate(masterPrefab, spawnWorld, Quaternion.identity);
-
-        // 2. IMPORTANT: Register it so it gets deleted upon refresh
-        GridManager.Instance.RegisterMaster(newMaster);
-
-        // 3. Save to Server
-        StartCoroutine(SaveMaster(spawnWorld.x, spawnWorld.y));
-    }
-
-    IEnumerator SaveMaster(float x, float y)
-    {
-        string url = "https://telegram-econ-sim.onrender.com/hire_master";
-
-        // Simple JSON payload
-        MasterRequestData data = new MasterRequestData
+        if (TelegramManager.Instance != null && TelegramManager.Instance.currentUser != null)
         {
-            id = TelegramManager.Instance.currentUser.telegram_id,
-            x = x,
-            y = y
-        };
-
-        string json = JsonUtility.ToJson(data);
-
-        UnityWebRequest request = new UnityWebRequest(url, "POST");
-        byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(json);
-        request.uploadHandler = new UploadHandlerRaw(bodyRaw);
-        request.downloadHandler = new DownloadHandlerBuffer();
-        request.SetRequestHeader("Content-Type", "application/json");
-
-        yield return request.SendWebRequest();
-
-        if (request.result == UnityWebRequest.Result.Success)
-        {
-            Debug.Log("Master Saved!");
-            // Optionally refresh local user data
-            TelegramManager.Instance.RequestUserData();
+            long myId = TelegramManager.Instance.currentUser.telegram_id;
+            StartCoroutine(JoinUserInstance(myId));
         }
-        else
-        {
-            Debug.LogError("Failed to save master: " + request.error);
-        }
-    }
-
-    // Helper class for JSON serialization
-    [System.Serializable]
-    class MasterRequestData
-    {
-        public long id;
-        public float x;
-        public float y;
     }
 
     public void RefreshList()
@@ -123,33 +73,75 @@ public class LobbyManager : MonoBehaviour
             lobbyScrollView.SetActive(!lobbyScrollView.activeSelf);
     }
 
-    public void GoHome()
-    {
-        Debug.Log("GoHome clicked!"); // <--- ADD THIS
-
-        if (TelegramManager.Instance != null && TelegramManager.Instance.currentUser != null)
-        {
-            long myId = TelegramManager.Instance.currentUser.telegram_id;
-            Debug.Log("Going to ID: " + myId); // <--- ADD THIS
-            StartCoroutine(JoinUserInstance(myId));
-        }
-        else
-        {
-            Debug.LogError("Cannot Go Home: User ID is null. Are we logged in?");
-        }
-    }
+    // --- VISIBILITY LOGIC ---
 
     void SetEditMode(bool isHome)
     {
+        // 1. Toggle UI Buttons
         if (furnitureButton != null) furnitureButton.SetActive(isHome);
+        if (hireButton != null) hireButton.SetActive(isHome);
         if (backHomeButton != null) backHomeButton.SetActive(!isHome);
 
+        // 2. Toggle Expansion Signs (World Objects)
         GameObject[] signs = GameObject.FindGameObjectsWithTag("ExpansionSign");
         foreach (GameObject sign in signs)
         {
             sign.SetActive(isHome);
         }
     }
+
+    // --- HIRING LOGIC ---
+
+    public void HireSpecificMaster(int candidateIndex)
+    {
+        if (GridManager.Instance == null || PathfindingManager.Instance == null) return;
+
+        // 1. Refresh grid to ensure valid spawn point
+        PathfindingManager.Instance.ScanMap();
+
+        // 2. Find spawn spot
+        Vector2Int spawnNode = PathfindingManager.Instance.GetRandomWalkableNode();
+        Vector3 spawnWorld = PathfindingManager.Instance.floorLayer.GetCellCenterWorld(new Vector3Int(spawnNode.x, spawnNode.y, 0));
+
+        // 3. Send to Server (We wait for server before spawning locally to get correct Name)
+        StartCoroutine(SaveMaster(spawnWorld.x, spawnWorld.y, candidateIndex));
+    }
+
+    IEnumerator SaveMaster(float x, float y, int index)
+    {
+        string url = "https://telegram-econ-sim.onrender.com/hire_master";
+
+        MasterRequestData data = new MasterRequestData
+        {
+            id = TelegramManager.Instance.currentUser.telegram_id,
+            x = x,
+            y = y,
+            candidate_index = index
+        };
+
+        string json = JsonUtility.ToJson(data);
+
+        UnityWebRequest request = new UnityWebRequest(url, "POST");
+        byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(json);
+        request.uploadHandler = new UploadHandlerRaw(bodyRaw);
+        request.downloadHandler = new DownloadHandlerBuffer();
+        request.SetRequestHeader("Content-Type", "application/json");
+
+        yield return request.SendWebRequest();
+
+        if (request.result == UnityWebRequest.Result.Success)
+        {
+            Debug.Log("Master Hired!");
+            // Reload user data. This will trigger SpawnObjects in GridManager automatically.
+            TelegramManager.Instance.RequestUserData();
+        }
+        else
+        {
+            Debug.LogError("Failed to hire master: " + request.error);
+        }
+    }
+
+    // --- EXPANSION LOGIC ---
 
     public void ExpandToChunk(int x, int y)
     {
@@ -171,7 +163,7 @@ public class LobbyManager : MonoBehaviour
 
         UnityWebRequest request = new UnityWebRequest(url, "POST");
         byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(json);
-        request.uploadHandler = new UnityEngine.Networking.UploadHandlerRaw(bodyRaw);
+        request.uploadHandler = new UploadHandlerRaw(bodyRaw);
         request.downloadHandler = new UnityEngine.Networking.DownloadHandlerBuffer();
         request.SetRequestHeader("Content-Type", "application/json");
 
@@ -184,9 +176,14 @@ public class LobbyManager : MonoBehaviour
         }
         else
         {
+            if (TelegramManager.Instance.debugText != null)
+                TelegramManager.Instance.debugText.text = "Error: " + request.error;
+
             Debug.LogError("Expansion Failed: " + request.error);
         }
     }
+
+    // --- USER LIST & VISITING ---
 
     IEnumerator FetchUserList()
     {
@@ -200,7 +197,6 @@ public class LobbyManager : MonoBehaviour
             string json = "{\"users\":" + request.downloadHandler.text + "}";
             UserList list = JsonUtility.FromJson<UserList>(json);
 
-            // Get My ID safely
             long myId = -1;
             if (TelegramManager.Instance != null && TelegramManager.Instance.currentUser != null)
             {
@@ -209,9 +205,7 @@ public class LobbyManager : MonoBehaviour
 
             foreach (TelegramUser u in list.users)
             {
-                // Filter out myself
                 if (u.telegram_id == myId) continue;
-
                 CreateUserButton(u);
             }
         }
@@ -240,7 +234,6 @@ public class LobbyManager : MonoBehaviour
         StartCoroutine(JoinUserInstance(targetId));
     }
 
-
     IEnumerator JoinUserInstance(long targetId)
     {
         string url = "https://telegram-econ-sim.onrender.com/user/" + targetId;
@@ -251,19 +244,34 @@ public class LobbyManager : MonoBehaviour
 
         if (request.result == UnityWebRequest.Result.Success)
         {
-            if (string.IsNullOrEmpty(request.downloadHandler.text)) yield break;
+            if (string.IsNullOrEmpty(request.downloadHandler.text))
+            {
+                Debug.LogError("Received empty data");
+                yield break;
+            }
 
-            TelegramUser targetUser = JsonUtility.FromJson<TelegramUser>(request.downloadHandler.text);
+            TelegramUser targetUser = null;
+            try
+            {
+                targetUser = JsonUtility.FromJson<TelegramUser>(request.downloadHandler.text);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError("JSON Parse Error: " + e.Message);
+                yield break;
+            }
 
-            // --- HIDE THE LIST AUTOMATICALLY ---
-            if (lobbyScrollView != null)
-                lobbyScrollView.SetActive(false);
+            // 1. Hide List
+            if (lobbyScrollView != null) lobbyScrollView.SetActive(false);
 
+            // 2. Check Ownership
             long myId = TelegramManager.Instance.currentUser.telegram_id;
             bool isHome = (targetId == myId);
 
+            // 3. Set UI Mode
             SetEditMode(isHome);
 
+            // 4. Update Header Text
             if (gameStagePanel != null) gameStagePanel.SetActive(true);
 
             if (isHome)
@@ -273,16 +281,18 @@ public class LobbyManager : MonoBehaviour
 
             if (emojiDisplayText != null) emojiDisplayText.text = "";
 
+            // 5. Load Map & Objects
             if (GridManager.Instance != null)
             {
                 if (targetUser.owned_chunks == null) targetUser.owned_chunks = new Chunk[0];
                 if (targetUser.objects_list == null) targetUser.objects_list = new ObjectData[0];
+                if (targetUser.masters_list == null) targetUser.masters_list = new MasterData[0];
 
                 GridManager.Instance.GenerateMap(targetUser.owned_chunks);
                 GridManager.Instance.SpawnObjects(targetUser);
-                GridManager.Instance.SpawnMasters(targetUser);
             }
 
+            // 6. Reset Camera
             if (CameraManager.Instance != null)
             {
                 CameraManager.Instance.CenterOnChunk(0, 0);
@@ -306,5 +316,14 @@ public class LobbyManager : MonoBehaviour
         public long id;
         public int chunk_x;
         public int chunk_y;
+    }
+
+    [System.Serializable]
+    class MasterRequestData
+    {
+        public long id;
+        public float x;
+        public float y;
+        public int candidate_index;
     }
 }

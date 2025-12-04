@@ -5,6 +5,8 @@ using UnityEngine.Networking;
 using System.Text;
 using System.Collections;
 
+// --- DATA STRUCTURES ---
+
 [System.Serializable]
 public class Chunk
 {
@@ -24,7 +26,7 @@ public class ObjectData
     public float x;
     public float y;
     public string type_id;
-    public SimpleData data; // <--- This was missing!
+    public SimpleData data;
 }
 
 [System.Serializable]
@@ -32,6 +34,22 @@ public class MasterData
 {
     public float x;
     public float y;
+    public string name;
+}
+
+[System.Serializable]
+public class CandidateData
+{
+    public string name;
+    public int price;
+    public int index;
+}
+
+[System.Serializable]
+public class ShopData
+{
+    public long next_refresh; // Timestamp from server
+    public CandidateData[] candidates;
 }
 
 [System.Serializable]
@@ -45,7 +63,10 @@ public class TelegramUser
     public Chunk[] owned_chunks;
     public ObjectData[] objects_list;
     public MasterData[] masters_list;
+    public ShopData hire_shop;
 }
+
+// --- MANAGER CLASS ---
 
 public class TelegramManager : MonoBehaviour
 {
@@ -73,6 +94,7 @@ public class TelegramManager : MonoBehaviour
         string json = "";
 
 #if UNITY_EDITOR
+        // Mock data for Editor testing
         json = "{\"id\": 99999, \"first_name\": \"Editor\", \"username\": \"editor_dev\"}";
 #else
         try {
@@ -128,17 +150,32 @@ public class TelegramManager : MonoBehaviour
 
         if (request.result == UnityWebRequest.Result.Success)
         {
+            // Parse full data from server
             currentUser = JsonUtility.FromJson<TelegramUser>(request.downloadHandler.text);
+
+            // Ensure arrays are initialized to avoid null checks elsewhere
+            if (currentUser.owned_chunks == null) currentUser.owned_chunks = new Chunk[0];
+            if (currentUser.objects_list == null) currentUser.objects_list = new ObjectData[0];
+            if (currentUser.masters_list == null) currentUser.masters_list = new MasterData[0];
+            if (currentUser.hire_shop == null) currentUser.hire_shop = new ShopData();
+            if (currentUser.hire_shop.candidates == null) currentUser.hire_shop.candidates = new CandidateData[0];
 
             if (debugText != null)
             {
                 UpdateDebugText();
             }
 
+            // Trigger Map Generation & Object Spawning if GridManager is ready
             if (GridManager.Instance != null)
             {
                 GridManager.Instance.GenerateMap(currentUser.owned_chunks);
                 GridManager.Instance.SpawnObjects(currentUser);
+            }
+
+            // Update Hiring UI if it's open
+            if (HiringUI.Instance != null)
+            {
+                HiringUI.Instance.RefreshUI();
             }
         }
         else
