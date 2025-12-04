@@ -162,6 +162,13 @@ public class GridManager : MonoBehaviour
         }
     }
 
+    public void RegisterMaster(GameObject masterObj)
+    {
+        if (!activeMasters.Contains(masterObj))
+        {
+            activeMasters.Add(masterObj);
+        }
+    }
     void CheckNeighbor(Vector2Int center, Vector2Int offset, bool spawnSign, HashSet<Vector2Int> ownedPositions)
     {
         Vector2Int neighborPos = center + offset;

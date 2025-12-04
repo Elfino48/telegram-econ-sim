@@ -114,3 +114,5 @@ MonoBehaviour:
   dollShakeAmount: 5
   workDuration: 10
   collectDuration: 3
+  stopDistance: 0.1
+  interactionOffset: {x: 0, y: -0.2}

@@ -12,13 +12,14 @@ public class ChestController : SmartObject
 
     public override void UpdateVisuals()
     {
-        // RESET LOGIC: Ensure we start with 10 if data is missing or on load
+        // Safety Check
+        if (this == null || spriteRenderer == null) return;
+
         if (!customData.ContainsKey("resources"))
         {
             customData["resources"] = "10";
         }
 
-        // Parse current value
         int.TryParse(customData["resources"], out resourceCount);
 
         if (textMesh != null)

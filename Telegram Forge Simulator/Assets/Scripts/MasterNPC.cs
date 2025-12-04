@@ -1,7 +1,7 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq; // Needed for sorting
+using System.Linq;
 
 public class MasterNPC : MonoBehaviour
 {
@@ -18,6 +18,13 @@ public class MasterNPC : MonoBehaviour
     [Header("Timings")]
     public float workDuration = 10f;
     public float collectDuration = 3f;
+
+    [Header("Positioning Tweaks")]
+    [Tooltip("How close to the target point the NPC stops (Lower = Closer)")]
+    public float stopDistance = 0.1f;
+
+    [Tooltip("Offset from the furniture pivot where the NPC should stand. (0, -1) means 1 tile below.")]
+    public Vector2 interactionOffset = new Vector2(0, -0.7f); // Try -0.5 or -0.2 to get closer
 
     // Current Targets
     private ChestController myChest;
@@ -41,21 +48,24 @@ public class MasterNPC : MonoBehaviour
                     yield return StartCoroutine(DoIdle());
                     break;
                 case State.GoingToChest:
-                    yield return StartCoroutine(MoveToTarget(GetInteractionPos(myChest.transform.position)));
+                    if (myChest == null) { currentState = State.Idle; break; }
+                    yield return StartCoroutine(MoveToTarget(GetGridTarget(myChest.transform.position)));
                     if (!isMoving) currentState = State.Collecting;
                     break;
                 case State.Collecting:
                     yield return StartCoroutine(DoCollecting());
                     break;
                 case State.GoingToAnvil:
-                    yield return StartCoroutine(MoveToTarget(GetInteractionPos(myAnvil.transform.position)));
+                    if (myAnvil == null) { currentState = State.Idle; break; }
+                    yield return StartCoroutine(MoveToTarget(GetGridTarget(myAnvil.transform.position)));
                     if (!isMoving) currentState = State.Working;
                     break;
                 case State.Working:
                     yield return StartCoroutine(DoWorking());
                     break;
                 case State.Depositing:
-                    yield return StartCoroutine(MoveToTarget(GetInteractionPos(myChest.transform.position)));
+                    if (myChest == null) { currentState = State.Idle; break; }
+                    yield return StartCoroutine(MoveToTarget(GetGridTarget(myChest.transform.position)));
                     if (!isMoving) currentState = State.Idle;
                     break;
             }
@@ -65,47 +75,114 @@ public class MasterNPC : MonoBehaviour
 
     IEnumerator DoIdle()
     {
-        // 1. Release any held objects
         ReleaseResources();
 
-        // 2. Find Nearest Available Chest with Resources
         myChest = FindBestChest();
 
         if (myChest != null)
         {
-            // Reserve it immediately!
             myChest.isOccupied = true;
 
-            // Now find an Anvil
             myAnvil = FindBestAnvil();
             if (myAnvil != null)
             {
-                myAnvil.isOccupied = true; // Reserve anvil too
+                myAnvil.isOccupied = true;
                 currentState = State.GoingToChest;
                 yield break;
             }
             else
             {
-                // No anvil? Release chest and wait
                 myChest.isOccupied = false;
                 myChest = null;
             }
         }
 
-        // Wander if no work found
         Vector2Int randomSpot = PathfindingManager.Instance.GetRandomWalkableNode();
         yield return StartCoroutine(MoveToTarget(randomSpot));
         yield return new WaitForSeconds(2f);
     }
 
+    // --- APPROACH LOGIC ---
+    IEnumerator ApproachObject(Transform target)
+    {
+        if (target == null) yield break;
+
+        // Calculate the exact world position we want to stand at
+        Vector3 exactTargetPos = target.position + (Vector3)interactionOffset;
+
+        // Walk towards that point until within 'stopDistance'
+        while (Vector3.Distance(transform.position, exactTargetPos) > stopDistance)
+        {
+            Vector3 dir = (exactTargetPos - transform.position).normalized;
+            transform.position += dir * moveSpeed * Time.deltaTime;
+            SetDirection(dir);
+            AnimateDoll();
+            yield return null;
+        }
+
+        // Final snap logic (optional, keeps them crisp)
+        // transform.position = exactTargetPos; 
+
+        transform.rotation = Quaternion.identity;
+    }
+
+    IEnumerator DoCollecting()
+    {
+        if (myChest != null) yield return StartCoroutine(ApproachObject(myChest.transform));
+
+        SetDirection(Vector2.up);
+
+        // SAFETY CHECK 1: Is chest still valid?
+        if (myChest == null || myChest.gameObject == null)
+        {
+            currentState = State.Idle;
+            yield break;
+        }
+
+        myChest.SetOpenState(true);
+        yield return new WaitForSeconds(collectDuration);
+
+        // SAFETY CHECK 2: Did it get destroyed while we waited?
+        if (myChest == null || myChest.gameObject == null)
+        {
+            currentState = State.Idle;
+            yield break;
+        }
+
+        myChest.resourceCount--;
+        if (myChest.customData.ContainsKey("resources"))
+            myChest.customData["resources"] = myChest.resourceCount.ToString();
+
+        myChest.UpdateVisuals();
+        myChest.SetOpenState(false);
+
+        currentState = State.GoingToAnvil;
+    }
+
+    IEnumerator DoWorking()
+    {
+        if (myAnvil != null) yield return StartCoroutine(ApproachObject(myAnvil.transform));
+
+        SetDirection(Vector2.up);
+
+        // SAFETY CHECK
+        if (myAnvil == null || myAnvil.gameObject == null)
+        {
+            currentState = State.Idle;
+            yield break;
+        }
+
+        yield return new WaitForSeconds(workDuration);
+        currentState = State.Depositing;
+    }
+
+    // --- HELPERS ---
+
     ChestController FindBestChest()
     {
         var chests = FindObjectsOfType<ChestController>();
-
-        // Sort by distance + Check availability
         var validChests = chests.Where(c => !c.isOccupied && c.HasResources())
                                 .OrderBy(c => Vector3.Distance(transform.position, c.transform.position));
-
         return validChests.FirstOrDefault();
     }
 
@@ -114,7 +191,6 @@ public class MasterNPC : MonoBehaviour
         var anvils = FindObjectsOfType<AnvilController>();
         var validAnvils = anvils.Where(a => !a.isOccupied)
                                 .OrderBy(a => Vector3.Distance(transform.position, a.transform.position));
-
         return validAnvils.FirstOrDefault();
     }
 
@@ -124,36 +200,6 @@ public class MasterNPC : MonoBehaviour
         if (myAnvil != null) { myAnvil.isOccupied = false; myAnvil = null; }
     }
 
-    IEnumerator DoCollecting()
-    {
-        SetDirection(Vector2.up);
-        if (myChest != null)
-        {
-            myChest.SetOpenState(true);
-            yield return new WaitForSeconds(collectDuration);
-
-            // Deduct Logic
-            myChest.resourceCount--;
-            myChest.customData["resources"] = myChest.resourceCount.ToString(); // Save to memory
-            myChest.UpdateVisuals(); // Update text
-            myChest.SetOpenState(false);
-
-            currentState = State.GoingToAnvil;
-        }
-        else
-        {
-            currentState = State.Idle; // Lost chest? Abort.
-        }
-    }
-
-    IEnumerator DoWorking()
-    {
-        SetDirection(Vector2.up);
-        yield return new WaitForSeconds(workDuration);
-        currentState = State.Depositing;
-    }
-
-    // --- MOVEMENT (Same as before) ---
     IEnumerator MoveToTarget(Vector2Int gridTarget)
     {
         Vector3Int cellPos = PathfindingManager.Instance.floorLayer.WorldToCell(transform.position);
@@ -186,10 +232,14 @@ public class MasterNPC : MonoBehaviour
         isMoving = false;
     }
 
-    Vector2Int GetInteractionPos(Vector3 targetWorldPos)
+    // UPDATED: Now uses the offset logic to find the best grid cell to walk to
+    Vector2Int GetGridTarget(Vector3 targetWorldPos)
     {
-        Vector3Int cell = PathfindingManager.Instance.floorLayer.WorldToCell(targetWorldPos);
-        return new Vector2Int(cell.x, cell.y - 1);
+        // Add the offset (e.g. -0.7 Y) to find the tile "below" or "near" the object
+        Vector3 idealStandingSpot = targetWorldPos + (Vector3)interactionOffset;
+
+        Vector3Int cell = PathfindingManager.Instance.floorLayer.WorldToCell(idealStandingSpot);
+        return new Vector2Int(cell.x, cell.y);
     }
 
     void SetDirection(Vector2 dir)

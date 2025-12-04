@@ -49,24 +49,19 @@ public class LobbyManager : MonoBehaviour
 
     public void HireMaster()
     {
-        // 1. Safety Checks
-        if (GridManager.Instance == null || PathfindingManager.Instance == null)
-        {
-            Debug.LogError("Cannot hire master: Managers are missing.");
-            return;
-        }
+        if (GridManager.Instance == null || PathfindingManager.Instance == null) return;
 
-        // 2. Refresh grid to ensure we don't spawn inside a wall or new furniture
         PathfindingManager.Instance.ScanMap();
-
-        // 3. Find a random safe spot
         Vector2Int spawnNode = PathfindingManager.Instance.GetRandomWalkableNode();
         Vector3 spawnWorld = PathfindingManager.Instance.floorLayer.GetCellCenterWorld(new Vector3Int(spawnNode.x, spawnNode.y, 0));
 
-        // 4. Spawn locally immediately
-        Instantiate(masterPrefab, spawnWorld, Quaternion.identity);
+        // 1. Spawn locally
+        GameObject newMaster = Instantiate(masterPrefab, spawnWorld, Quaternion.identity);
 
-        // 5. Save to Server
+        // 2. IMPORTANT: Register it so it gets deleted upon refresh
+        GridManager.Instance.RegisterMaster(newMaster);
+
+        // 3. Save to Server
         StartCoroutine(SaveMaster(spawnWorld.x, spawnWorld.y));
     }
 
