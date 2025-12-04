@@ -73,33 +73,92 @@ public class GridManager : MonoBehaviour
         }
 
         PaintWalls(floorPositions);
+        PathfindingManager.Instance.ScanMap();
     }
 
+    // This spawns Furniture (with data) AND Masters
     public void SpawnObjects(TelegramUser user)
     {
-        foreach (var obj in activeFurniture) Destroy(obj);
+        // 1. CLEAR OLD FURNITURE
+        foreach (var obj in activeFurniture)
+        {
+            if (obj != null) Destroy(obj);
+        }
         activeFurniture.Clear();
 
-        if (user.objects_list == null) return;
-
-        foreach (var objData in user.objects_list)
+        // 2. SPAWN FURNITURE
+        if (user.objects_list != null)
         {
-            GameObject prefabToSpawn = null;
-            foreach (var p in furniturePrefabs)
+            foreach (var objData in user.objects_list)
             {
-                if (p.name == objData.type_id || p.name + "(Clone)" == objData.type_id)
+                // Find correct prefab by name
+                GameObject prefabToSpawn = null;
+                foreach (var p in furniturePrefabs)
                 {
-                    prefabToSpawn = p;
-                    break;
+                    if (p.name == objData.type_id || p.name + "(Clone)" == objData.type_id)
+                    {
+                        prefabToSpawn = p;
+                        break;
+                    }
+                }
+
+                if (prefabToSpawn != null)
+                {
+                    Vector3 pos = new Vector3(objData.x, objData.y, 0);
+                    GameObject newObj = Instantiate(prefabToSpawn, pos, Quaternion.identity);
+
+                    // Sorting Fix
+                    if (newObj.GetComponent<SpriteRenderer>())
+                        newObj.GetComponent<SpriteRenderer>().sortingOrder = 2;
+
+                    // --- DATA INJECTION FIX ---
+                    SmartObject smartObj = newObj.GetComponent<SmartObject>();
+                    if (smartObj != null)
+                    {
+                        Dictionary<string, string> dict = new Dictionary<string, string>();
+
+                        // If data exists on server, use it. Otherwise default to "10".
+                        if (objData.data != null && !string.IsNullOrEmpty(objData.data.resources))
+                        {
+                            dict["resources"] = objData.data.resources;
+                        }
+                        else
+                        {
+                            // RULE: All chests default to 10 resources if undefined
+                            dict["resources"] = "10";
+                        }
+
+                        smartObj.LoadData(dict); // Updates the text mesh immediately
+                    }
+
+                    activeFurniture.Add(newObj);
                 }
             }
+        }
 
-            if (prefabToSpawn != null)
+        // 3. CLEAR OLD MASTERS
+        foreach (var m in activeMasters)
+        {
+            if (m != null) Destroy(m);
+        }
+        activeMasters.Clear();
+
+        // 4. SPAWN MASTERS
+        if (user.masters_list != null)
+        {
+            foreach (var masterData in user.masters_list)
             {
-                Vector3 pos = new Vector3(objData.x, objData.y, 0);
-                GameObject newObj = Instantiate(prefabToSpawn, pos, Quaternion.identity);
-                activeFurniture.Add(newObj);
+                Vector3 pos = new Vector3(masterData.x, masterData.y, 0);
+                GameObject newMaster = Instantiate(masterPrefab, pos, Quaternion.identity);
+                activeMasters.Add(newMaster);
             }
+        }
+
+        // 5. UPDATE PATHFINDING
+        // Important: Re-scan the map now that new furniture is blocking tiles
+        if (PathfindingManager.Instance != null)
+        {
+            PathfindingManager.Instance.ScanMap();
         }
     }
 
@@ -149,6 +208,7 @@ public class GridManager : MonoBehaviour
 
     void SpawnSignAtChunk(int cx, int cy)
     {
+        // Don't spawn duplicates
         foreach (var s in activeSigns)
         {
             if (s == null) continue;
@@ -227,6 +287,26 @@ public class GridManager : MonoBehaviour
                     wallLayer.SetTile((Vector3Int)south, wallBottom);
                 }
             }
+        }
+    }
+
+    [Header("NPCs")]
+    public GameObject masterPrefab;
+    private List<GameObject> activeMasters = new List<GameObject>();
+
+    public void SpawnMasters(TelegramUser user)
+    {
+        // Clear old
+        foreach (var m in activeMasters) if (m != null) Destroy(m);
+        activeMasters.Clear();
+
+        if (user.masters_list == null) return;
+
+        foreach (var masterData in user.masters_list)
+        {
+            Vector3 pos = new Vector3(masterData.x, masterData.y, 0);
+            GameObject newMaster = Instantiate(masterPrefab, pos, Quaternion.identity);
+            activeMasters.Add(newMaster);
         }
     }
 }

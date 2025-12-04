@@ -20,6 +20,9 @@ public class CameraManager : MonoBehaviour
     private Vector3 dragOrigin;
     private bool isDragging = false;
 
+    // NEW: Lock state to prevent camera movement when interacting with UI or Objects
+    public bool isLocked = false;
+
     void Awake()
     {
         Instance = this;
@@ -44,15 +47,27 @@ public class CameraManager : MonoBehaviour
         }
     }
 
+    // NEW: Public method to toggle lock from other scripts
+    public void SetLock(bool locked)
+    {
+        isLocked = locked;
+        isDragging = false; // Force stop any current drag to prevent "sticking"
+    }
+
     void HandleMouseInput()
     {
-        // 1. Desktop Zoom (Scroll Wheel)
+        // If locked, allow Zooming but block Panning? 
+        // Usually better to block everything or just panning. Let's block panning.
+
+        // 1. Desktop Zoom (Scroll Wheel) - Always allowed or check lock if desired
         float scroll = Input.GetAxis("Mouse ScrollWheel");
         if (scroll != 0)
         {
             float newSize = cam.orthographicSize - (scroll * zoomSpeed);
             cam.orthographicSize = Mathf.Clamp(newSize, minZoom, maxZoom);
         }
+
+        if (isLocked) return;
 
         // 2. Desktop Pan (Mouse Drag)
         if (Input.GetMouseButtonDown(0))
@@ -77,6 +92,7 @@ public class CameraManager : MonoBehaviour
     void HandleTouchInput()
     {
         // 1. Mobile Zoom (Two Finger Pinch)
+        // We usually allow zooming even if locked (unless you want to strictly block it)
         if (Input.touchCount == 2)
         {
             // Stop panning if we are zooming
@@ -103,6 +119,8 @@ public class CameraManager : MonoBehaviour
         // 2. Mobile Pan (One Finger Drag)
         else if (Input.touchCount == 1)
         {
+            if (isLocked) return; // Block panning if locked (e.g. dragging furniture)
+
             Touch touch = Input.GetTouch(0);
 
             if (touch.phase == TouchPhase.Began)

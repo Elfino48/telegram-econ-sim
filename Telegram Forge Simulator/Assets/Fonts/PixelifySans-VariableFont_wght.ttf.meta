@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 134569619b7475a4bb147e299109fd6b
+guid: 7aa2de9b6d726a542b5c5f2be1a16d77
 TrueTypeFontImporter:
   externalObjects: {}
   serializedVersion: 4
@@ -9,7 +9,7 @@ TrueTypeFontImporter:
   characterPadding: 1
   includeFontData: 1
   fontNames:
-  - Noto Emoji
+  - Pixelify Sans
   fallbackFontReferences: []
   customCharacters: 
   fontRenderingMode: 0

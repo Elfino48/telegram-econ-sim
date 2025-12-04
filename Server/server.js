@@ -24,7 +24,8 @@ const UserSchema = new mongoose.Schema({
     gold: { type: Number, default: 100 },
     owned_chunks: [{ x: Number, y: Number }], 
     painted_walls: [{ x: Number, y: Number, type_id: String }],
-    objects_list: [{ x: Number, y: Number, type_id: String }]   
+    objects_list: [{ x: Number, y: Number, type_id: String, data: { type: Map, of: String } }],
+    masters_list: [{ x: Number, y: Number }] // Simple list of coordinates
 });
 const User = mongoose.model('User', UserSchema);
 
@@ -33,6 +34,20 @@ function generateRandomSet() {
     for(let i=0; i<3; i++) set.push(Math.floor(Math.random() * 100) + 1);
     return set;
 }
+
+app.post('/hire_master', async (req, res) => {
+    const { id, x, y } = req.body;
+    try {
+        const user = await User.findOne({ telegram_id: id });
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        user.masters_list.push({ x, y });
+        await user.save();
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
 
 app.post('/login', async (req, res) => {
     const { id, first_name, username } = req.body;
@@ -144,13 +159,15 @@ app.post('/expand', async (req, res) => {
 });
 
 app.post('/place_object', async (req, res) => {
-    const { id, x, y, type_id } = req.body;
+    // added 'data' to the destructured body
+    const { id, x, y, type_id, data } = req.body; 
     
     try {
         const user = await User.findOne({ telegram_id: id });
         if (!user) return res.status(404).json({ error: "User not found" });
 
-        user.objects_list.push({ x, y, type_id });
+        // Save the new structure
+        user.objects_list.push({ x, y, type_id, data: data || {} });
         await user.save();
 
         res.json({ success: true });

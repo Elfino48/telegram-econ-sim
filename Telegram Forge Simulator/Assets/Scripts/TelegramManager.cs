@@ -13,11 +13,25 @@ public class Chunk
 }
 
 [System.Serializable]
+public class SimpleData
+{
+    public string resources;
+}
+
+[System.Serializable]
 public class ObjectData
 {
     public float x;
     public float y;
     public string type_id;
+    public SimpleData data; // <--- This was missing!
+}
+
+[System.Serializable]
+public class MasterData
+{
+    public float x;
+    public float y;
 }
 
 [System.Serializable]
@@ -30,6 +44,7 @@ public class TelegramUser
     public int gold;
     public Chunk[] owned_chunks;
     public ObjectData[] objects_list;
+    public MasterData[] masters_list;
 }
 
 public class TelegramManager : MonoBehaviour

@@ -12,50 +12,77 @@ public class FurnitureManager : MonoBehaviour
     public GameObject[] furniturePrefabs;
     public Tilemap floorLayer;
     public Tilemap wallLayer;
+    public GameObject furnitureSelectionPanel; // Assign your UI Panel here
 
     [Header("Placement Settings")]
     public float placementRadius = 1.0f;
-
-    [Header("Wall Margins")]
-    [Range(0, 0.5f)] public float paddingTop = 0.4f;    // Big margin for Top Wall (Face)
-    [Range(0, 0.5f)] public float paddingBottom = 0.1f; // Small margin for Bottom
-    [Range(0, 0.5f)] public float paddingSides = 0.2f;  // Medium margin for Left/Right
+    [Range(0, 0.5f)] public float paddingTop = 0.4f;    // 0.4 prevents clipping into North walls
+    [Range(0, 0.5f)] public float paddingBottom = 0.1f;
+    [Range(0, 0.5f)] public float paddingSides = 0.2f;
 
     private GameObject currentGhost;
     private int currentPrefabIndex;
     private bool isPlacing = false;
+
+    // Drag State
+    private bool isDraggingGhost = false;
     private Vector2 touchStartPos;
-    private bool isDragging = false;
+    private float dragThreshold = 10f; // Pixels required to count as a "Drag"
 
     void Awake()
     {
         Instance = this;
     }
 
-    public void StartPlacementMode()
-    {
-        if (furniturePrefabs.Length == 0) return;
+    // --- UI METHODS ---
 
-        currentPrefabIndex = Random.Range(0, furniturePrefabs.Length);
+    public void ToggleFurniturePanel()
+    {
+        if (furnitureSelectionPanel != null)
+            furnitureSelectionPanel.SetActive(!furnitureSelectionPanel.activeSelf);
+    }
+
+    // Connect this to your UI Buttons (0=Chest, 1=Anvil)
+    public void SelectItemToPlace(int index)
+    {
+        if (index < 0 || index >= furniturePrefabs.Length) return;
+
+        currentPrefabIndex = index;
+
+        // Hide panel automatically
+        if (furnitureSelectionPanel != null) furnitureSelectionPanel.SetActive(false);
+
+        StartPlacementMode();
+    }
+
+    // --- PLACEMENT LOGIC ---
+
+    void StartPlacementMode()
+    {
         GameObject prefab = furniturePrefabs[currentPrefabIndex];
 
         if (currentGhost != null) Destroy(currentGhost);
 
+        // Spawn in center of camera view (User friendly for mobile)
         Vector3 centerScreen = Camera.main.ViewportToWorldPoint(new Vector3(0.5f, 0.5f, 0));
         centerScreen.z = 0;
 
         currentGhost = Instantiate(prefab, centerScreen, Quaternion.identity);
 
+        // Setup Visuals (Semi-transparent)
         SpriteRenderer sr = currentGhost.GetComponent<SpriteRenderer>();
         Color c = sr.color;
         c.a = 0.6f;
         sr.color = c;
+        sr.sortingOrder = 10; // High order to be always visible while dragging
 
-        // Ghost is always high priority to be visible
-        sr.sortingOrder = 10;
-
+        // Ensure collider exists for touch detection
         if (currentGhost.GetComponent<BoxCollider2D>() == null)
             currentGhost.AddComponent<BoxCollider2D>();
+
+        // Special Logic: Anvil Shadow Preview
+        AnvilController anvil = currentGhost.GetComponent<AnvilController>();
+        if (anvil != null) anvil.ShowPreviewShadow(true);
 
         isPlacing = true;
     }
@@ -74,84 +101,106 @@ public class FurnitureManager : MonoBehaviour
             if (touch.phase == TouchPhase.Began)
             {
                 touchStartPos = touch.position;
-                isDragging = false;
+
+                // Check if we touched the GHOST
+                RaycastHit2D hit = Physics2D.Raycast(touchWorldPos, Vector2.zero);
+                if (hit.collider != null && hit.collider.gameObject == currentGhost)
+                {
+                    isDraggingGhost = true;
+                    // Lock camera so we don't pan map while dragging furniture
+                    if (CameraManager.Instance != null) CameraManager.Instance.SetLock(true);
+                }
             }
             else if (touch.phase == TouchPhase.Moved)
             {
-                if (Vector2.Distance(touch.position, touchStartPos) > 10f)
+                if (isDraggingGhost)
                 {
-                    isDragging = true;
-                    Vector3 delta = touch.deltaPosition * 0.01f;
-                    Vector3 newPos = currentGhost.transform.position + new Vector3(delta.x, delta.y, 0);
-                    newPos.z = 0;
-                    currentGhost.transform.position = newPos;
+                    // Snap ghost to finger
+                    currentGhost.transform.position = touchWorldPos;
                 }
             }
-            else if (touch.phase == TouchPhase.Ended)
+            else if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled)
             {
-                if (!isDragging)
+                // Unlock Camera
+                if (CameraManager.Instance != null) CameraManager.Instance.SetLock(false);
+
+                // TAP CHECK: Did we move significantly?
+                float dist = Vector2.Distance(touch.position, touchStartPos);
+
+                if (isDraggingGhost && dist < dragThreshold)
                 {
-                    RaycastHit2D hit = Physics2D.Raycast(touchWorldPos, Vector2.zero);
-                    if (hit.collider != null && hit.collider.gameObject == currentGhost)
+                    // It was a TAP. Try to place.
+                    if (IsPositionValid(currentGhost.transform.position))
                     {
-                        if (IsPositionValid(currentGhost.transform.position))
-                        {
-                            PlaceObject(currentGhost.transform.position);
-                        }
+                        PlaceObject(currentGhost.transform.position);
                     }
                 }
+
+                isDraggingGhost = false;
             }
         }
-        // --- PC INPUT ---
+        // --- PC INPUT (Mouse) ---
         else if (Input.mousePresent)
         {
             Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             mousePos.z = 0;
             currentGhost.transform.position = mousePos;
 
+            // Place on Click
             if (Input.GetMouseButtonDown(0) && !IsPointerOverUI() && IsPositionValid(mousePos))
             {
                 PlaceObject(mousePos);
             }
         }
 
+        // Update Green/Red Color
         bool isValid = IsPositionValid(currentGhost.transform.position);
         SetGhostColor(isValid);
     }
 
     bool IsPositionValid(Vector3 pos)
     {
+        // 1. Force Z to 0 for strict 2D checks
+        pos.z = 0;
+
         Vector3Int cellPos = floorLayer.WorldToCell(pos);
 
+        // 2. Must be on Floor
         if (!floorLayer.HasTile(cellPos)) return false;
+
+        // 3. Must NOT be on Wall
         if (wallLayer.HasTile(cellPos)) return false;
 
+        // 4. Radius Check (Other Furniture)
         Collider2D[] hits = Physics2D.OverlapCircleAll(pos, placementRadius);
         foreach (var hit in hits)
         {
             if (hit.gameObject != currentGhost) return false;
         }
 
-        // --- NEW PADDING LOGIC ---
+        // 5. PADDING CHECK (Prevents clipping into walls)
         Vector3 cellCenter = floorLayer.GetCellCenterWorld(cellPos);
         Vector3 diff = pos - cellCenter;
 
-        // Check North Wall (Use paddingTop)
+        // Check North (Top Wall Face)
         if (diff.y > (0.5f - paddingTop))
         {
             if (wallLayer.HasTile(cellPos + new Vector3Int(0, 1, 0))) return false;
         }
-        // Check South Wall (Use paddingBottom)
+
+        // Check South
         if (diff.y < -(0.5f - paddingBottom))
         {
             if (wallLayer.HasTile(cellPos + new Vector3Int(0, -1, 0))) return false;
         }
-        // Check Right Wall (Use paddingSides)
+
+        // Check Right
         if (diff.x > (0.5f - paddingSides))
         {
             if (wallLayer.HasTile(cellPos + new Vector3Int(1, 0, 0))) return false;
         }
-        // Check Left Wall (Use paddingSides)
+
+        // Check Left
         if (diff.x < -(0.5f - paddingSides))
         {
             if (wallLayer.HasTile(cellPos + new Vector3Int(-1, 0, 0))) return false;
@@ -170,39 +219,60 @@ public class FurnitureManager : MonoBehaviour
     void PlaceObject(Vector3 pos)
     {
         isPlacing = false;
-
-        // 1. FORCE Z TO 0 STRICTLY
-        pos.z = 0;
+        pos.z = 0; // Force Z to 0
 
         GameObject realObj = Instantiate(furniturePrefabs[currentPrefabIndex], pos, Quaternion.identity);
 
+        // Setup Collider (if missing) for future collision checks
         if (realObj.GetComponent<BoxCollider2D>() == null)
         {
             BoxCollider2D col = realObj.AddComponent<BoxCollider2D>();
             col.size = new Vector2(0.8f, 0.8f);
         }
 
-        // 2. FIX SORTING ORDER
-        // Ensure it matches the Wall Layer (which is usually 2)
-        // Since Y-Sorting is active (Custom Axis), setting them to the same Order ID
-        // allows the Y-position to determine who is in front.
-        realObj.GetComponent<SpriteRenderer>().sortingOrder = 2;
+        // FIX SORTING: Set Order to 2 to match Walls (allows Y-sorting to work)
+        if (realObj.GetComponent<SpriteRenderer>())
+            realObj.GetComponent<SpriteRenderer>().sortingOrder = 2;
+
+        // --- SMART DATA HANDLING ---
+        Dictionary<string, string> data = new Dictionary<string, string>();
+
+        // If Chest, set default resources
+        ChestController chest = realObj.GetComponent<ChestController>();
+        if (chest != null)
+        {
+            data.Add("resources", "10");
+            chest.LoadData(data);
+        }
+
+        // If Anvil, hide shadow
+        AnvilController anvil = realObj.GetComponent<AnvilController>();
+        if (anvil != null)
+        {
+            anvil.ShowPreviewShadow(false);
+        }
 
         Destroy(currentGhost);
 
-        StartCoroutine(SaveObjectRoutine(pos.x, pos.y, furniturePrefabs[currentPrefabIndex].name));
+        // Send to Server
+        StartCoroutine(SaveObjectRoutine(pos.x, pos.y, furniturePrefabs[currentPrefabIndex].name, data));
+        PathfindingManager.Instance.ScanMap(); 
     }
 
-    IEnumerator SaveObjectRoutine(float x, float y, string typeId)
+    IEnumerator SaveObjectRoutine(float x, float y, string typeId, Dictionary<string, string> customData)
     {
         string url = "https://telegram-econ-sim.onrender.com/place_object";
 
+        // Simple data wrapper for JSON
         PlaceRequestData data = new PlaceRequestData
         {
             id = TelegramManager.Instance.currentUser.telegram_id,
             x = x,
             y = y,
-            type_id = typeId
+            type_id = typeId,
+            // Check if resources exist in dict, otherwise send null or empty
+            data = (customData != null && customData.ContainsKey("resources")) ?
+                   new SimpleData { resources = customData["resources"] } : new SimpleData()
         };
 
         string json = JsonUtility.ToJson(data);
@@ -227,5 +297,15 @@ public class FurnitureManager : MonoBehaviour
     }
 
     [System.Serializable]
-    class PlaceRequestData { public long id; public float x; public float y; public string type_id; }
+    class PlaceRequestData
+    {
+        public long id;
+        public float x;
+        public float y;
+        public string type_id;
+        public SimpleData data;
+    }
+
+    [System.Serializable]
+    class SimpleData { public string resources; }
 }

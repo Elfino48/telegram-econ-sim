@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &467708404644550449
+--- !u!1 &3688817670485208843
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,24 +8,23 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 9203585167927977772}
-  - component: {fileID: 8782854983555947520}
-  - component: {fileID: 4794934759773144952}
-  - component: {fileID: 7304752501814862604}
+  - component: {fileID: 5300556556741318455}
+  - component: {fileID: 7919278449917938506}
+  - component: {fileID: 8619661281968084783}
   m_Layer: 0
-  m_Name: Sale Sign
-  m_TagString: ExpansionSign
+  m_Name: Master
+  m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &9203585167927977772
+--- !u!4 &5300556556741318455
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 467708404644550449}
+  m_GameObject: {fileID: 3688817670485208843}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -34,13 +33,13 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!212 &8782854983555947520
+--- !u!212 &7919278449917938506
 SpriteRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 467708404644550449}
+  m_GameObject: {fileID: 3688817670485208843}
   m_Enabled: 1
   m_CastShadows: 0
   m_ReceiveShadows: 0
@@ -80,76 +79,38 @@ SpriteRenderer:
   m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 1
-  m_Sprite: {fileID: 21300000, guid: 0a85a3d19c566ad4690e5b8469542ab1, type: 3}
+  m_SortingOrder: 2
+  m_Sprite: {fileID: -8464919759989109987, guid: 04c3cb44b6c568b46b5eae7153f8871e, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 0.8125, y: 0.8125}
+  m_Size: {x: 0.625, y: 0.71875}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
---- !u!114 &4794934759773144952
+--- !u!114 &8619661281968084783
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 467708404644550449}
+  m_GameObject: {fileID: 3688817670485208843}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e3cb211b3016b42448015411c45cb799, type: 3}
+  m_Script: {fileID: 11500000, guid: 69b807c39a455464c956b7cdf0759d6b, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: '::'
-  chunkX: 0
-  chunkY: 0
-  textMesh: {fileID: 0}
---- !u!61 &7304752501814862604
-BoxCollider2D:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 467708404644550449}
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Density: 1
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_ForceSendLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_ForceReceiveLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_ContactCaptureLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_CallbackLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_IsTrigger: 0
-  m_UsedByEffector: 0
-  m_CompositeOperation: 0
-  m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0}
-  m_SpriteTilingProperty:
-    border: {x: 0, y: 0, z: 0, w: 0}
-    pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 0.8125, y: 0.8125}
-    newSize: {x: 0.8125, y: 0.8125}
-    adaptiveTilingThreshold: 0.5
-    drawMode: 0
-    adaptiveTiling: 0
-  m_AutoTiling: 0
-  m_Size: {x: 0.8125, y: 0.8125}
-  m_EdgeRadius: 0
+  m_EditorClassIdentifier: Assembly-CSharp::MasterNPC
+  currentState: 0
+  spriteRenderer: {fileID: 7919278449917938506}
+  faceUp: {fileID: 7618563683029311046, guid: 04c3cb44b6c568b46b5eae7153f8871e, type: 3}
+  faceDown: {fileID: -8464919759989109987, guid: 04c3cb44b6c568b46b5eae7153f8871e, type: 3}
+  faceLeft: {fileID: 4843460787145592052, guid: 04c3cb44b6c568b46b5eae7153f8871e, type: 3}
+  faceRight: {fileID: 9157796520870563621, guid: 04c3cb44b6c568b46b5eae7153f8871e, type: 3}
+  moveSpeed: 2
+  dollShakeSpeed: 10
+  dollShakeAmount: 5
+  workDuration: 10
+  collectDuration: 3

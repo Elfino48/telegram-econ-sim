@@ -62,10 +62,15 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets\Scripts\TelegramManager.cs" />
+    <Compile Include="Assets\Scripts\MasterNPC.cs" />
     <Compile Include="Assets\Scripts\GridManager.cs" />
     <Compile Include="Assets\Scripts\UIManager.cs" />
+    <Compile Include="Assets\Scripts\SmartObject.cs" />
+    <Compile Include="Assets\Scripts\PathfindingManager.cs" />
     <Compile Include="Assets\Scripts\FurnitureManager.cs" />
     <Compile Include="Assets\Scripts\ExpansionSign.cs" />
+    <Compile Include="Assets\Scripts\ChestController.cs" />
+    <Compile Include="Assets\Scripts\AnvilController.cs" />
     <Compile Include="Assets\Scripts\CameraManager.cs" />
     <Compile Include="Assets\Scripts\LobbyManager.cs" />
   </ItemGroup>
